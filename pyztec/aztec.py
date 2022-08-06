@@ -6,59 +6,6 @@ import matplotlib.pyplot as plt
 import reedsolo 
 
 
-def prod(x, y, log, alog, gf):
-    """ Product x times y """
-    if not x or not y:
-        return 0
-    return alog[(log[x] + log[y]) % (gf - 1)]
-
-
-def reed_solomon(ind, nd, nc, gf, pp):
-    """ Calculate error correction codewords
-    
-    Algorithm is based on Aztec Code bar code symbology specification from
-    GOST-R-ISO-MEK-24778-2010 (Russian)
-    Takes ``nd`` data codeword values in ``ind`` and adds on ``nc`` check
-    codewords, all within GF(gf) where ``gf`` is a power of 2 and ``pp``
-    is the value of its prime modulus polynomial.
-
-    :param ind: data codewords (in/out param)
-    :param nd: number of data codewords
-    :param nc: number of error correction codewords
-    :param gf: Galois Field order
-    :param pp: prime modulus polynomial value
-    """
-
-    wd = ([*ind] + [0] * nc)[:nd + nc]
-    # generate log and anti log tables
-    log = {0: 1 - gf}
-    alog = {0: 1}
-    for i in range(1, gf):
-        alog[i] = alog[i - 1] * 2
-        if alog[i] >= gf:
-            alog[i] ^= pp
-        log[alog[i]] = i
-    # generate polynomial coeffs
-    c = {0: 1}
-    for i in range(1, nc + 1):
-        c[i] = 0
-    for i in range(1, nc + 1):
-        c[i] = c[i - 1]
-        for j in range(i - 1, 0, -1):
-            c[j] = c[j - 1] ^ prod(c[j], alog[i], log, alog, gf)
-        c[0] = prod(c[0], alog[i], log, alog, gf)
-    # generate codewords
-    for i in range(nd, nd + nc):
-        wd[i] = 0
-    for i in range(nd):
-        assert 0 <= wd[i] < gf
-        k = wd[nd] ^ wd[i]
-        for j in range(nc):
-            wd[nd + j] = prod(k, c[nc - j - 1], log, alog, gf)
-            if j < nc - 1:
-                wd[nd + j] ^= wd[nd + j + 1]
-    return wd
-
 class AztecBarcode:
     nparray: np.ndarray = None
 
@@ -123,9 +70,6 @@ class AztecBarcode:
         rsc = reedsolo.RSCodec(5, nsize=7, c_exp=4, fcr=1, prim=19)
         v = rsc.encode(bytearray([0,5]))
         print(list(v))
-
-        cwd= reed_solomon([0,5], 2, 5, 16, 19)
-        print(cwd)
 
 
 
