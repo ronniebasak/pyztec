@@ -1,5 +1,6 @@
 from calendar import c
 from tkinter import N
+from tkinter.messagebox import RETRY
 from typing import Tuple
 import numpy as np
 import matplotlib.pyplot as plt
@@ -108,31 +109,47 @@ class AztecBarcode:
     def _get_layer_boundary(self, layer, direction):
         total_layers =  (self.nparray.shape[0] - 15) // 4
         center = self.nparray.shape[0] // 2
-
+        # print(center, self.nparray.shape[0])
         lsize = layer * 4 + 15
 
+        x,y, xn, yn, next_layer = None, None, None, None, layer
         if direction == "X_IN":
+            # calculate boundary condition
             x = center - ( 7 + 2*layer) 
             y = lsize - 2
+
+            # calculate next start of codeword
+            xn = x
+            yn = y+1
 
         elif direction == "Y_NIN":
             x = lsize - 2
             y = center + ( 7 + 2*layer)
 
+            xn = x+1
+            yn = y
+
         elif direction == "X_NIN":
             x = lsize - 1
-            y = center - ( 7 + 2*layer)
+            y = center - ( 7 + 2*layer) + 1
+
+            xn = x
+            yn = y-1
         
         elif direction == "Y_IN":
-            x = center - ( 7 + 2*layer)
-            y = lsize - 1
-        
+            x = center - ( 7 + 2*layer) + 1
+            y = center - ( 7 + 2*layer)
+
+            xn = x+1
+            yn = y+2
+
+            next_layer = layer-1 if layer > 0 else None
+        return x,y, xn, yn, next_layer 
             
 
     
-    def _generate_compact_data_codewords(self):
+    def _generate_compact_data_codewords(self, CODEWORD_SIZE: int):
         assert self.type == AztecType.COMPACT, "Unsupported type"
-        CODEWORD_SIZE = 6
         n_squares = self.nparray.shape[0]**2 
         data_squares = n_squares - 121
         skip_bits = data_squares % CODEWORD_SIZE  
@@ -146,41 +163,70 @@ class AztecBarcode:
 
         d_rotation = ["X_IN", "Y_NIN", "X_NIN", "Y_IN"]
         d_ind = 0
+        direction = d_rotation[d_ind]
+        x_match, y_match, x_next, y_next, layer_next = self._get_layer_boundary(layer, direction)
+        # codecount = 0
+
         while True:
-            direction = d_rotation[d_ind]
-            if pos<6:
-                if direction == "X_IN":
+            if skip_bits:
+                if pos&1 == 0:
+                    x+=1
+                else:
+                    x-=1
+                    y+=1
+                pos += 1
+                skip_bits -= 1
+                if skip_bits == 0:
+                    pos = 1
+                    yield x,y
+
+            elif pos< CODEWORD_SIZE:
+                if direction == "X_IN": ## READING INWARDS x-direction while going down
                     if x&1 == 0:
                         x+=1
-                    if x&1 == 1:
+                    elif x&1 == 1:
                         x-=1
                         y+=1
                 
-                elif direction == "Y_NIN":
+                elif direction == "Y_NIN": # READING INWARDS y-direction while going right
                     if y&1 == 0:
                         y-=1
-                    if y&1 == 1:
+                    elif y&1 == 1:
                         y+=1
                         x+=1
                 
-                elif direction == "X_NIN":
+                elif direction == "X_NIN": # READING INWARDS x-direction while going up
                     if x&1 == 0:
                         x-=1
-                    if x&1 == 1:
+                    elif x&1 == 1:
                         x+=1
                         y-=1
 
-                elif direction == "Y_IN":
+                elif direction == "Y_IN": # READING INWARDS y-direction while going left
                     if y&1 == 0:
                         y+=1
-                    if y&1 == 1:
+                    elif y&1 == 1:
                         y-=1
                         x-=1
+
+                if pos&1==0:
+                    # check if we need to switch direction
+                    if x == x_match and y == y_match:
+                        d_ind = (d_ind + 1 ) % 4
+                        direction = d_rotation[d_ind]
+                        x,y = x_next, y_next
+                        layer = layer_next
+                        if layer is None:
+                            break
+
+                        x_match, y_match, x_next, y_next, layer_next = self._get_layer_boundary(layer, direction)
+
 
                 pos+=1
-                if pos>0 and pos&1==0:
-                    # check if we need to switch direction
-                    if x&1 == 0 and 
+                if pos == CODEWORD_SIZE:
+                    pos = 0
+                    # codecount += 1
+                yield x,y
 
 
     def get_mode(self) -> Tuple[int, int]:
@@ -232,10 +278,86 @@ class AztecBarcode:
     
     def decode(self):
         assert self.type == AztecType.COMPACT, "Unsupported type"
-        CODEWORD_SIZE = 6
+        CODEWORD_SIZE = 6 # compute codeword size here
         if not self.num_layers and self.nparray.any():
             self.get_mode()
 
-        n_squares = self.nparray.shape[0]**2 
-        data_squares = n_squares - 121
-        skip_bits = data_squares % CODEWORD_SIZE  
+        # n_squares = self.nparray.shape[0]**2 
+        # data_squares = n_squares - 121
+
+        codewords = self._get_codewords(CODEWORD_SIZE)
+        
+        bitstring = self._get_bit_string(codewords)
+        # print(bitstring)
+
+        ind = 0
+        mode="upper"
+        inc = 5
+        shift = False
+        pmode = None
+        output = []
+        
+        while ind<len(bitstring):
+            if mode != "digit":
+                bits = bitstring[ind: ind+5]
+                if len(bitstring) - ind < 5:
+                    break
+                inc = 5
+            else:
+                bits = bits[ind: ind+4]
+                if len(bitstring) - ind < 4:
+                    break
+                inc = 4
+            
+            data = int(bits, 2)
+            decoded_char = codes[mode][data]
+            # print(decoded_char)
+
+            if decoded_char == SpecialChars.LOWER_LATCH:
+                mode = "lower"
+            else:
+                output.append(decoded_char)
+            ind += inc
+        # print(output)
+        return output
+
+
+
+    def _get_bit_string(self, codewords):
+        bitstring = ""
+        k = 0 
+        for codeword in codewords:
+            k += 1
+            if k < self.num_codewords:
+                # unstuff bits
+                if codeword == 0b000001:
+                    bitstring += "00000"
+                if codeword == 0b111110:
+                    bitstring+= "11111"
+                else:
+                    bitstring += "{0:6b}".format(codeword)
+        bitstring = bitstring.replace(" ", "0")
+        return bitstring
+
+
+    def _get_codewords(self, CODEWORD_SIZE):
+        codewords = []
+        debug = ""
+
+        pos, codecount = 0,0
+        acc = 0
+        for x,y in self._generate_compact_data_codewords(CODEWORD_SIZE):
+            bit = self.nparray[y,x]
+            acc = acc << 1 | bit
+            # debug += str(bit)
+            pos += 1
+            # print(x,y, bit)
+            if pos == CODEWORD_SIZE:
+                pos = 0
+                codecount += 1
+                codewords.append(acc)
+                acc = 0
+                debug += " "
+        # print(debug)
+        return codewords
+
