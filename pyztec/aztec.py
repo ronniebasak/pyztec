@@ -104,7 +104,34 @@ class AztecBarcode:
             yield y, x
 
     
+    # layer is 0 indexed
+    def _get_layer_boundary(self, layer, direction):
+        total_layers =  (self.nparray.shape[0] - 15) // 4
+        center = self.nparray.shape[0] // 2
+
+        lsize = layer * 4 + 15
+
+        if direction == "X_IN":
+            x = center - ( 7 + 2*layer) 
+            y = lsize - 2
+
+        elif direction == "Y_NIN":
+            x = lsize - 2
+            y = center + ( 7 + 2*layer)
+
+        elif direction == "X_NIN":
+            x = lsize - 1
+            y = center - ( 7 + 2*layer)
+        
+        elif direction == "Y_IN":
+            x = center - ( 7 + 2*layer)
+            y = lsize - 1
+        
+            
+
+    
     def _generate_compact_data_codewords(self):
+        assert self.type == AztecType.COMPACT, "Unsupported type"
         CODEWORD_SIZE = 6
         n_squares = self.nparray.shape[0]**2 
         data_squares = n_squares - 121
@@ -115,11 +142,12 @@ class AztecBarcode:
         pos = 0
         
         kout = [(x,y)]
-
+        layer = (self.nparray.shape[0] - 15) // 4
 
         d_rotation = ["X_IN", "Y_NIN", "X_NIN", "Y_IN"]
-        direction = "X_IN"
+        d_ind = 0
         while True:
+            direction = d_rotation[d_ind]
             if pos<6:
                 if direction == "X_IN":
                     if x&1 == 0:
@@ -150,6 +178,9 @@ class AztecBarcode:
                         x-=1
 
                 pos+=1
+                if pos>0 and pos&1==0:
+                    # check if we need to switch direction
+                    if x&1 == 0 and 
 
 
     def get_mode(self) -> Tuple[int, int]:
