@@ -107,30 +107,31 @@ class AztecBarcode:
     
     # layer is 0 indexed
     def _get_layer_boundary(self, layer, direction):
-        total_layers =  (self.nparray.shape[0] - 15) // 4
+        total_layers =  self.num_layers #(self.nparray.shape[0] - 15) // 4
         center = self.nparray.shape[0] // 2
         # print(center, self.nparray.shape[0])
         lsize = layer * 4 + 15
+        loff = 2*(self.num_layers - layer - 1)
 
         x,y, xn, yn, next_layer = None, None, None, None, layer
         if direction == "X_IN":
             # calculate boundary condition
             x = center - ( 7 + 2*layer) 
-            y = lsize - 2
+            y = lsize - 2 + loff
 
             # calculate next start of codeword
             xn = x
             yn = y+1
 
         elif direction == "Y_NIN":
-            x = lsize - 2
+            x = lsize - 2 + loff
             y = center + ( 7 + 2*layer)
 
             xn = x+1
             yn = y
 
         elif direction == "X_NIN":
-            x = lsize - 1
+            x = lsize - 1 + loff
             y = center - ( 7 + 2*layer) + 1
 
             xn = x
@@ -166,6 +167,10 @@ class AztecBarcode:
         direction = d_rotation[d_ind]
         x_match, y_match, x_next, y_next, layer_next = self._get_layer_boundary(layer, direction)
         # codecount = 0
+
+        if skip_bits == 0:
+            pos += 1
+            yield x,y
 
         while True:
             if skip_bits:
@@ -313,8 +318,17 @@ class AztecBarcode:
             decoded_char = codes[mode][data]
             # print(decoded_char)
 
+            if shift:
+                shift = False
+                mode = pmode
+                pmode = None
+
             if decoded_char == SpecialChars.LOWER_LATCH:
                 mode = "lower"
+            elif decoded_char == SpecialChars.UPPER_SHIFT:
+                shift = True
+                pmode = mode
+                mode = "upper"
             else:
                 output.append(decoded_char)
             ind += inc
@@ -325,17 +339,16 @@ class AztecBarcode:
 
     def _get_bit_string(self, codewords):
         bitstring = ""
-        k = 0 
-        for codeword in codewords:
-            k += 1
-            if k < self.num_codewords:
-                # unstuff bits
-                if codeword == 0b000001:
-                    bitstring += "00000"
-                if codeword == 0b111110:
-                    bitstring+= "11111"
-                else:
-                    bitstring += "{0:6b}".format(codeword)
+        useful_codewords = codewords[:self.num_codewords]
+        for codeword in useful_codewords:
+            # unstuff bits
+            if codeword == 0b000001:
+                bitstring += "00000"
+            if codeword == 0b111110:
+                bitstring+= "11111"
+            else:
+                bitstring += "{0:6b}".format(codeword)
+
         bitstring = bitstring.replace(" ", "0")
         return bitstring
 
@@ -348,10 +361,10 @@ class AztecBarcode:
         acc = 0
         for x,y in self._generate_compact_data_codewords(CODEWORD_SIZE):
             bit = self.nparray[y,x]
+            # print(x,y, bit)
             acc = acc << 1 | bit
             # debug += str(bit)
             pos += 1
-            # print(x,y, bit)
             if pos == CODEWORD_SIZE:
                 pos = 0
                 codecount += 1

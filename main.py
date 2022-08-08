@@ -57,18 +57,19 @@ aztec = AztecBarcode(hello_debug)
 # v=aztec.get_mode()
 # print(v)
 
-# v = aztec._get_layer_boundary(0, "X_IN")
+# v = aztec._get_layer_boundary(1, "X_IN")
 # print(v)
-# v = aztec._get_layer_boundary(0, "Y_NIN")
+# v = aztec._get_layer_boundary(1, "Y_NIN")
 # print(v)
-# v = aztec._get_layer_boundary(0, "X_NIN")
+# v = aztec._get_layer_boundary(1, "X_NIN")
 # print(v)
-# v = aztec._get_layer_boundary(0, "Y_IN")
+# v = aztec._get_layer_boundary(1, "Y_IN")
 # print(v)
 
 
 
 v = aztec.decode()
+# print(v)
 print("".join(v))
 
 
