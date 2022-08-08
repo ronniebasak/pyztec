@@ -366,7 +366,7 @@ class AztecBarcode:
                 raise ValueError("All bits are the same, erasure detected")
 
             bits = ""
-            if codeword == 0b000001:
+            if codeword == 1:
                 bits = "0" * (CODEWORD_SIZE -1)
 
             elif codeword &1 ==0 and (codeword>>1) == MAX_MSBITS:
