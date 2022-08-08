@@ -283,17 +283,17 @@ class AztecBarcode:
     
     def decode(self):
         assert self.type == AztecType.COMPACT, "Unsupported type"
-        CODEWORD_SIZE = 6 # compute codeword size here
         if not self.num_layers and self.nparray.any():
             self.get_mode()
 
+        CODEWORD_SIZE = 6 if self.num_layers < 3 else 8 # compute codeword size here
         # n_squares = self.nparray.shape[0]**2 
         # data_squares = n_squares - 121
 
         codewords = self._get_codewords(CODEWORD_SIZE)
         
-        bitstring = self._get_bit_string(codewords)
-        # print(bitstring)
+        bitstring = self._get_bit_string(codewords, CODEWORD_SIZE)
+        print(bitstring)
 
         ind = 0
         mode="upper"
@@ -314,42 +314,69 @@ class AztecBarcode:
                     break
                 inc = 4
             
+            print("bits",bits)
             data = int(bits, 2)
+            print("data",data)
             decoded_char = codes[mode][data]
-            # print(decoded_char)
+            print(decoded_char)
 
             if shift:
                 shift = False
                 mode = pmode
                 pmode = None
-
             if decoded_char == SpecialChars.LOWER_LATCH:
                 mode = "lower"
+            elif decoded_char == SpecialChars.UPPER_LATCH:
+                mode = "upper"
             elif decoded_char == SpecialChars.UPPER_SHIFT:
                 shift = True
                 pmode = mode
                 mode = "upper"
+            elif decoded_char == SpecialChars.DIGIT_LATCH:
+                mode = "digit"
+            elif decoded_char == SpecialChars.PUNCT_LATCH:
+                mode = "punct"
+            elif decoded_char == SpecialChars.PUNCT_SHIFT:
+                shift = True
+                pmode = mode
+                mode = "punct"
+
+
             else:
                 output.append(decoded_char)
             ind += inc
         # print(output)
+        if output[-1] == SpecialChars.BINARY_SHIFT:
+            output = output[:-1]
         return output
 
 
 
-    def _get_bit_string(self, codewords):
+    def _get_bit_string(self, codewords, CODEWORD_SIZE: int):
         bitstring = ""
         useful_codewords = codewords[:self.num_codewords]
+
+        MAX_BITS = (1<<CODEWORD_SIZE) - 1 # all ones
+        MAX_MSBITS = MAX_BITS >> 1 # all msb ones
+
         for codeword in useful_codewords:
             # unstuff bits
-            if codeword == 0b000001:
-                bitstring += "00000"
-            if codeword == 0b111110:
-                bitstring+= "11111"
-            else:
-                bitstring += "{0:6b}".format(codeword)
+            print("CODEWORD", codeword, "{:6b}".format(codeword).replace(" ", "0"))
+            if codeword == 0 or codeword == MAX_BITS:
+                raise ValueError("All bits are the same, erasure detected")
 
-        bitstring = bitstring.replace(" ", "0")
+            bits = ""
+            if codeword == 0b000001:
+                bits = "0" * (CODEWORD_SIZE -1)
+
+            elif codeword &1 ==0 and (codeword>>1) == MAX_MSBITS:
+                bits = "1"* (CODEWORD_SIZE -1)
+            else:
+                bits = "{:b}".format(codeword)
+                bits = "0"* (CODEWORD_SIZE - len(bits)) + bits
+
+            print("DECODED BITS", bits)
+            bitstring += bits
         return bitstring
 
 

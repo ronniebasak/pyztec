@@ -23,7 +23,7 @@ image = imageio.imread(sys.argv[1]) # Open file for reading
 print(sys.argv[1])
 if sys.argv[1].endswith(".gif"):
     image = image[0] # only the first frame
-# plt.imshow(image)
+plt.imshow(image)
 
 
 
@@ -36,7 +36,7 @@ nparr = np.array(pil_img)
 if CHANNEL != 3: # in alpha channel, we get correct inversion else bits are flipped
     nparr = ~nparr
 # plt.imshow(nparr, cmap="Greys")
-# plt.show()
+plt.show()
 
 
 memfile = io.BytesIO()
