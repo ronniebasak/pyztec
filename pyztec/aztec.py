@@ -64,7 +64,7 @@ codes = {
     ]
 }
 
-class AztecBarcode:
+class AztecBarcodeCompact:
     nparray: np.ndarray = None
     type: Enum = AztecType.COMPACT # default type is compact
     num_layers: int = None
@@ -305,16 +305,17 @@ class AztecBarcode:
         while ind<len(bitstring):
             if mode != "digit":
                 bits = bitstring[ind: ind+5]
-                if len(bitstring) - ind < 5:
+                if len(bitstring) - ind <= 5:
                     break
                 inc = 5
             else:
-                bits = bits[ind: ind+4]
-                if len(bitstring) - ind < 4:
+                bits = bitstring[ind: ind+4]
+                if len(bitstring) - ind <= 4:
                     break
                 inc = 4
-            
+
             # print("bits",bits)
+
             data = int(bits, 2)
             # print("data",data)
             decoded_char = codes[mode][data]
@@ -353,7 +354,6 @@ class AztecBarcode:
 
 
     def _get_bit_string(self, codewords, CODEWORD_SIZE: int):
-        bitstring = ""
         GF_SIZE = 0
         PRIME = 0
 
@@ -373,12 +373,13 @@ class AztecBarcode:
 
         rsc = reedsolo.RSCodec(5, nsize= len(codewords), c_exp=GF_SIZE, fcr=1, prim=PRIME)
         v = rsc.decode(codewords)
-        useful_codewords = codewords[:self.num_codewords]
-        # print("DECODED BYTES::::", useful_codewords)
-        
+        useful_codewords = list(v[0][:self.num_codewords])
+        # useful_codewords = codewords[:self.num_codewords]
+        # print("DECODED WORDS", list(v[0]))
         MAX_BITS = (1<<CODEWORD_SIZE) - 1 # all ones
         MAX_MSBITS = MAX_BITS >> 1 # all msb ones
 
+        bitstring = ""
         for codeword in useful_codewords:
             # unstuff bits
             # print("CODEWORD", codeword, "{:6b}".format(codeword).replace(" ", "0"))
@@ -397,6 +398,7 @@ class AztecBarcode:
 
             # print("DECODED BITS", bits)
             bitstring += bits
+        # print("BIT STRING::: ", bitstring)
         return bitstring
 
 
