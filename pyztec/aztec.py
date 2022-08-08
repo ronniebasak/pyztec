@@ -293,7 +293,7 @@ class AztecBarcode:
         codewords = self._get_codewords(CODEWORD_SIZE)
         
         bitstring = self._get_bit_string(codewords, CODEWORD_SIZE)
-        print(bitstring)
+        # print(bitstring)
 
         ind = 0
         mode="upper"
@@ -314,11 +314,11 @@ class AztecBarcode:
                     break
                 inc = 4
             
-            print("bits",bits)
+            # print("bits",bits)
             data = int(bits, 2)
-            print("data",data)
+            # print("data",data)
             decoded_char = codes[mode][data]
-            print(decoded_char)
+            # print(decoded_char)
 
             if shift:
                 shift = False
@@ -346,7 +346,7 @@ class AztecBarcode:
                 output.append(decoded_char)
             ind += inc
         # print(output)
-        if output[-1] == SpecialChars.BINARY_SHIFT:
+        if output[-1] == SpecialChars.BINARY_SHIFT or output[-1] == SpecialChars.UPPER_SHIFT or output[-1] == SpecialChars.UPPER_LATCH:
             output = output[:-1]
         return output
 
@@ -354,14 +354,34 @@ class AztecBarcode:
 
     def _get_bit_string(self, codewords, CODEWORD_SIZE: int):
         bitstring = ""
-        useful_codewords = codewords[:self.num_codewords]
+        GF_SIZE = 0
+        PRIME = 0
 
+        # REED SOLOMON CORRECTION 
+        if self.num_layers < 3:
+            GF_SIZE = 6
+            PRIME = AztecPolynomials.POLY_6.value
+        elif self.num_layers < 9:
+            GF_SIZE = 8
+            PRIME = AztecPolynomials.POLY_8.value
+        elif self.num_layers < 23:
+            GF_SIZE = 10
+            PRIME = AztecPolynomials.POLY_10.value
+        else:
+            GF_SIZE = 12
+            PRIME = AztecPolynomials.POLY_12.value
+
+        rsc = reedsolo.RSCodec(5, nsize= len(codewords), c_exp=GF_SIZE, fcr=1, prim=PRIME)
+        v = rsc.decode(codewords)
+        useful_codewords = codewords[:self.num_codewords]
+        # print("DECODED BYTES::::", useful_codewords)
+        
         MAX_BITS = (1<<CODEWORD_SIZE) - 1 # all ones
         MAX_MSBITS = MAX_BITS >> 1 # all msb ones
 
         for codeword in useful_codewords:
             # unstuff bits
-            print("CODEWORD", codeword, "{:6b}".format(codeword).replace(" ", "0"))
+            # print("CODEWORD", codeword, "{:6b}".format(codeword).replace(" ", "0"))
             if codeword == 0 or codeword == MAX_BITS:
                 raise ValueError("All bits are the same, erasure detected")
 
@@ -375,7 +395,7 @@ class AztecBarcode:
                 bits = "{:b}".format(codeword)
                 bits = "0"* (CODEWORD_SIZE - len(bits)) + bits
 
-            print("DECODED BITS", bits)
+            # print("DECODED BITS", bits)
             bitstring += bits
         return bitstring
 
