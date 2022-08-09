@@ -1,7 +1,7 @@
 from calendar import c
 from tkinter import N
 from tkinter.messagebox import RETRY
-from typing import Tuple
+from typing import Any, List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
 import reedsolo 
@@ -64,15 +64,24 @@ codes = {
     ]
 }
 
+class AztecCodecModes(Enum):
+    READ: int = 0
+    WRITE: int = 1
+
+
 class AztecBarcodeCompact:
     nparray: np.ndarray = None
     type: Enum = AztecType.COMPACT # default type is compact
     num_layers: int = None
     num_codewords: int = None
+    codec_mode: AztecCodecModes = AztecCodecModes.READ
 
-    def __init__(self, nparray) -> None:
+    def __init__(self, nparray, codec_mode: AztecCodecModes = AztecCodecModes.READ) -> None:
         self.nparray = nparray
+        if codec_mode == AztecCodecModes.WRITE:
+            self.nparray = np.zeros((11,11))
 
+        self.codec_mode = codec_mode
 
     def _generate_compact_mode_sequences(self) -> Tuple[int, int]:
         xseq = [1, 0, -1, 0]
@@ -149,7 +158,7 @@ class AztecBarcodeCompact:
             
 
     
-    def _generate_compact_data_codewords(self, CODEWORD_SIZE: int):
+    def _read_compact_data_codewords(self, CODEWORD_SIZE: int):
         assert self.type == AztecType.COMPACT, "Unsupported type"
         n_squares = self.nparray.shape[0]**2 
         data_squares = n_squares - 121
@@ -280,6 +289,77 @@ class AztecBarcodeCompact:
 
         return num_layers, codewords
 
+
+    def _get_bit_string(self, codewords, CODEWORD_SIZE: int):
+        GF_SIZE = 0
+        PRIME = 0
+
+        # REED SOLOMON CORRECTION 
+        if self.num_layers < 3:
+            GF_SIZE = 6
+            PRIME = AztecPolynomials.POLY_6.value
+        elif self.num_layers < 9:
+            GF_SIZE = 8
+            PRIME = AztecPolynomials.POLY_8.value
+        elif self.num_layers < 23:
+            GF_SIZE = 10
+            PRIME = AztecPolynomials.POLY_10.value
+        else:
+            GF_SIZE = 12
+            PRIME = AztecPolynomials.POLY_12.value
+
+        rsc = reedsolo.RSCodec(5, nsize= len(codewords), c_exp=GF_SIZE, fcr=1, prim=PRIME)
+        v = rsc.decode(codewords)
+        useful_codewords = list(v[0][:self.num_codewords])
+        # useful_codewords = codewords[:self.num_codewords]
+        # print("DECODED WORDS", list(v[0]))
+        MAX_BITS = (1<<CODEWORD_SIZE) - 1 # all ones
+        MAX_MSBITS = MAX_BITS >> 1 # all msb ones
+
+        bitstring = ""
+        for codeword in useful_codewords:
+            # unstuff bits
+            # print("CODEWORD", codeword, "{:6b}".format(codeword).replace(" ", "0"))
+            if codeword == 0 or codeword == MAX_BITS:
+                raise ValueError("All bits are the same, erasure detected")
+
+            bits = ""
+            if codeword == 1:
+                bits = "0" * (CODEWORD_SIZE -1)
+
+            elif codeword &1 ==0 and (codeword>>1) == MAX_MSBITS:
+                bits = "1"* (CODEWORD_SIZE -1)
+            else:
+                bits = "{:b}".format(codeword)
+                bits = "0"* (CODEWORD_SIZE - len(bits)) + bits
+
+            # print("DECODED BITS", bits)
+            bitstring += bits
+        # print("BIT STRING::: ", bitstring)
+        return bitstring
+
+
+    def _get_codewords(self, CODEWORD_SIZE):
+        codewords = []
+        debug = ""
+
+        pos, codecount = 0,0
+        acc = 0
+        for x,y in self._read_compact_data_codewords(CODEWORD_SIZE):
+            bit = self.nparray[y,x]
+            # print(x,y, bit)
+            acc = acc << 1 | bit
+            # debug += str(bit)
+            pos += 1
+            if pos == CODEWORD_SIZE:
+                pos = 0
+                codecount += 1
+                codewords.append(acc)
+                acc = 0
+                debug += " "
+        # print(debug)
+        return codewords
+
     
     def decode(self):
         assert self.type == AztecType.COMPACT, "Unsupported type"
@@ -353,73 +433,61 @@ class AztecBarcodeCompact:
 
 
 
-    def _get_bit_string(self, codewords, CODEWORD_SIZE: int):
-        GF_SIZE = 0
-        PRIME = 0
-
-        # REED SOLOMON CORRECTION 
-        if self.num_layers < 3:
-            GF_SIZE = 6
-            PRIME = AztecPolynomials.POLY_6.value
-        elif self.num_layers < 9:
-            GF_SIZE = 8
-            PRIME = AztecPolynomials.POLY_8.value
-        elif self.num_layers < 23:
-            GF_SIZE = 10
-            PRIME = AztecPolynomials.POLY_10.value
-        else:
-            GF_SIZE = 12
-            PRIME = AztecPolynomials.POLY_12.value
-
-        rsc = reedsolo.RSCodec(5, nsize= len(codewords), c_exp=GF_SIZE, fcr=1, prim=PRIME)
-        v = rsc.decode(codewords)
-        useful_codewords = list(v[0][:self.num_codewords])
-        # useful_codewords = codewords[:self.num_codewords]
-        # print("DECODED WORDS", list(v[0]))
-        MAX_BITS = (1<<CODEWORD_SIZE) - 1 # all ones
-        MAX_MSBITS = MAX_BITS >> 1 # all msb ones
-
-        bitstring = ""
-        for codeword in useful_codewords:
-            # unstuff bits
-            # print("CODEWORD", codeword, "{:6b}".format(codeword).replace(" ", "0"))
-            if codeword == 0 or codeword == MAX_BITS:
-                raise ValueError("All bits are the same, erasure detected")
-
-            bits = ""
-            if codeword == 1:
-                bits = "0" * (CODEWORD_SIZE -1)
-
-            elif codeword &1 ==0 and (codeword>>1) == MAX_MSBITS:
-                bits = "1"* (CODEWORD_SIZE -1)
-            else:
-                bits = "{:b}".format(codeword)
-                bits = "0"* (CODEWORD_SIZE - len(bits)) + bits
-
-            # print("DECODED BITS", bits)
-            bitstring += bits
-        # print("BIT STRING::: ", bitstring)
-        return bitstring
+    def _convert_input_string_to_seq(self, input_string: str) -> List[Any]:
+        ...
 
 
-    def _get_codewords(self, CODEWORD_SIZE):
-        codewords = []
-        debug = ""
+    def _convert_charray_bitstring(self, charray: List[Any]) -> str:
+        ...
 
-        pos, codecount = 0,0
-        acc = 0
-        for x,y in self._generate_compact_data_codewords(CODEWORD_SIZE):
-            bit = self.nparray[y,x]
-            # print(x,y, bit)
-            acc = acc << 1 | bit
-            # debug += str(bit)
-            pos += 1
-            if pos == CODEWORD_SIZE:
-                pos = 0
-                codecount += 1
-                codewords.append(acc)
-                acc = 0
-                debug += " "
-        # print(debug)
-        return codewords
+
+    def _convert_bitstring_bitstuff_pad(self, bitstring: str) -> str:
+        ...
+        
+
+    def _compute_codewords_from_bitstring(self, bitstring: str) -> List[int]:
+        ...
+
+
+    # returns layer size and total supported codewords
+    def _compute_layer_size(self, codewords, ecc_level = 0) -> Tuple[int, int]:
+        ...
+
+
+    def _reedsolo_enc(self, codewords):
+        ...
+
+
+    def _get_nparray_from_codewords(self, codewords):
+        ... 
+
+
+    def encode(self, input_string: str | List[Any]):
+        self.codec_mode = AztecCodecModes.WRITE
+
+        # convert string into character array, includes escape sequences and special characters.
+        char_arr = self._convert_input_string_to_seq(input_string)
+
+        # convert the character array into binary string
+        bitstring = self._convert_charray_bitstring(char_arr)
+
+        # add stuffing bits and padding bits if necessary
+        bitstring = self._convert_bitstring_bitstuff_pad(bitstring)
+
+        # split the string into 6 bit codewords
+        codewords = self._compute_codewords_from_bitstring(bitstring); # array of codewords that needs to be encoded
+
+        # calculate layer size required
+        lsize = self._compute_layer_size()
+        
+        # add reed-solomon codewords
+        codewords = self._reedsolo_enc(codewords)
+
+        # encode into the np array
+        nparray = self._get_nparray_from_codewords(codewords)
+
+        # return np array
+        return nparray
+
+
 

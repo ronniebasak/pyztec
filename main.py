@@ -74,18 +74,3 @@ v = aztec.decode()
 print(v)
 print("".join(v))
 
-
-# class PyZtec:
-#     def __init__(self):
-#         self.array = np.array([])
-
-#     def run(self):
-#         pass
-
-#     def __del__(self):
-#         pass
-
-
-# print(COMPACT_AZTEC_CODE)
-# plt.imshow(hello_debug, cmap="Greys", interpolation='none')
-# plt.show()
