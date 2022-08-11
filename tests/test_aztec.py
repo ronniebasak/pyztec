@@ -8,9 +8,7 @@ from pyztec.aztec import AztecBarcodeCompact
 class TestEncode:
 
     def test__convert_input_string_to_seq(self):
-
         aztec = AztecBarcodeCompact(np.zeros((11,11))) 
-
         test_cases = [
             # Testing upper case single character
             {
@@ -166,5 +164,91 @@ class TestEncode:
 
         for test_case in test_cases:
             assert aztec._convert_input_string_to_seq(test_case["input"]) == test_case["output"], "Failed Test Case: {}".format(test_case["input"])
+
+
+    def test__convert_charray_bitstring(self):
+        aztec = AztecBarcodeCompact(np.zeros((11,11))) 
+        test_cases = [
+            # Testing upper case single character
+            {
+                "input": [2],
+                "output": "00010"
+            },
+
+            # Upper case multiple characters
+            {
+                "input": [2,3,4,5,6],
+                "output": "0001000011001000010100110"
+            },
+
+            # mixed
+            {
+                "input": [2,28,4,5,6],
+                "output": "0001011100001000010100110"
+            },
+            # digits
+            {
+                "input": [2, 3, 30, (12,4)],
+                "output": "0001000011111101100"
+            },
+        ]
+
+        for test_case in test_cases:
+            assert aztec._convert_charray_bitstring(test_case["input"]) == test_case["output"], "Failed Test Case: {}".format(test_case["input"])
         
+
+    def test__convert_bitstring_bitstuff_pad(self):
+        aztec = AztecBarcodeCompact(np.zeros((11,11))) 
+        test_cases = [
+            # 4 bits
+            {
+                "input": "0001",
+                "output": "000111111110"
+            },
+            # 5 bits
+            {
+                "input": "00010",
+                "output": "000101111110"
+            },
+
+            # 6 bits
+            {
+                "input": "000100",
+                "output": "000100111110"
+            },
+
+            # 6 1st bit
+            {
+                "input": "111111",
+                "output": "111110111110111110"
+            },
+
+            # 5 1st bit and a 0
+            {
+                "input": "111110",
+                "output": "111110111110"
+            },
+
+            # 6 0s
+            {
+                "input": "000000",
+                "output": "000001011111111110"
+            },
+
+
+            # random bits 
+            {
+                "input": "000111000111",
+                "output": "000111000111111110"
+            },
+
+            # random bits with all 1s
+            {
+                "input": "000111111111000111",
+                "output": "000111111110100011111110111110"
+            },
+        ]
+
+        for test_case in test_cases:
+            assert aztec._convert_bitstring_bitstuff_pad(test_case["input"]) == test_case["output"], "Failed Test Case: {}".format(test_case["input"])
         

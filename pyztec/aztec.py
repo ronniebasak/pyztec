@@ -623,13 +623,11 @@ class AztecBarcodeCompact:
         return seq
 
 
-
-
     def _convert_charray_bitstring(self, charray: List[Any]) -> str:
         bitstring = ""
         for k in charray:
             item = k
-            bits = 4
+            bits = 5
             if type(k) == tuple:
                 item, bits = k
 
@@ -639,8 +637,34 @@ class AztecBarcodeCompact:
             bitstring += _str
         return bitstring
 
+
     def _convert_bitstring_bitstuff_pad(self, bitstring: str) -> str:
-        ...
+        bitlength = len(bitstring)
+        k=0
+        while k < bitlength:
+            # add pad bits at the end
+            if len(bitstring) - k < 6:
+                pads = "1" * (5 - (len(bitstring) - k))
+
+                if bitstring[k:k+6] + pads == "11111":
+                    pads += "0"
+                else:
+                    pads += "1"
+                bitstring += pads
+
+            if bitstring[k:k+6] == "111111":
+                bitstring = bitstring[:k] + "111110" + bitstring[k+5:]
+                bitlength += 1
+
+            if bitstring[k:k+6] == "000000":
+                bitstring = bitstring[:k] + "000001" + bitstring[k+5:]
+                bitlength += 1
+
+            k+=6
+        
+        # 1 codeword worth of padding
+        bitstring += "111110"
+        return bitstring            
         
 
     def _compute_codewords_from_bitstring(self, bitstring: str) -> List[int]:
