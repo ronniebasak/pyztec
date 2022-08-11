@@ -1,7 +1,3 @@
-from calendar import c
-from socket import CAN_J1939
-from tkinter import N
-from tkinter.messagebox import RETRY
 from typing import Any, List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
@@ -440,7 +436,7 @@ class AztecBarcodeCompact:
         subarr2_punct = ["\r\n", ". ", ", ", ": "]
         subarr_mixed = ["@", "\\", "^", "_", "`", "|", "~"]
         
-        if len(char == 1):
+        if len(char) == 1:
             # upper
             if 65 <= ord(char) <= 90:
                 to_return.append(("upper", 2 + (ord(char) - 65) ))
@@ -477,6 +473,9 @@ class AztecBarcodeCompact:
             elif char in subarr_mixed:
                 ind = subarr_mixed.index(char)
                 to_return.append(("punct", 20+ind))
+            
+            elif 48 <= ord(char) <= 57:
+                to_return.append(("digit", 2 + ord(char) - 48))
                 
                 
         elif len(char) == 2:
@@ -487,9 +486,9 @@ class AztecBarcodeCompact:
         return to_return
 
     
-    def _calculate_mode_seq(self, mode, emode, ecode, char_ind, input_string):        
+    def _calculate_mode_seq(self, mode, emode, ecode, char_ind, input_string, cskip):
         seq = []
-        skip = 1
+        skip = cskip
         # if same mode, then continue
         if mode == emode:
             if mode == "digit":
@@ -509,7 +508,7 @@ class AztecBarcodeCompact:
             if mode == "lower":
                 # when shifting from lower to upper,
                 # we need to check if at least 3 chars are upper, then latch else shift
-                if char_ind < len(input_string) -3:
+                if char_ind < len(input_string) -2:
 
                     k1 = self._get_char_class(input_string[char_ind+1])
                     ncx, ncxc = k1[0]
@@ -525,10 +524,6 @@ class AztecBarcodeCompact:
                     seq += [codes[mode].index(SpecialChars.UPPER_SHIFT), ecode]
         
             elif mode == "punct" or mode == "mixed":
-                if mode == "digit":
-                    seq += [(codes[mode].index(SpecialChars.UPPER_LATCH), 4)]
-                else:
-                    seq += [codes[mode].index(SpecialChars.UPPER_LATCH)]
                 seq += [codes[mode].index(SpecialChars.UPPER_LATCH), ecode]
                 mode = emode
             
@@ -549,6 +544,15 @@ class AztecBarcodeCompact:
                 seq += [(0, 4), ecode]
             else:
                 seq += [0, ecode]
+            mode = emode
+
+        
+        elif emode == "digit":
+            if mode == "upper" or mode == "lower":
+                seq += [codes[mode].index(SpecialChars.DIGIT_LATCH), (ecode, 4)]
+            elif mode == "punct" or mode == "mixed":
+                seq += [codes[mode].index(SpecialChars.UPPER_LATCH), codes["upper"].index(SpecialChars.DIGIT_LATCH), (ecode, 4)]
+            mode = emode
         
         elif emode == "mixed":
             if mode == "upper" or mode =="lower":
@@ -569,18 +573,18 @@ class AztecBarcodeCompact:
         seq = []
 
         char_ind = 0
-        while char_ind < range(len(input_string)):
+        while char_ind < len(input_string):
             skip = 1
-            char = input_string[char]
+            char = input_string[char_ind]
 
             available_modes = []
             
             if char == "\r" and char_ind < len(input_string) - 1 and input_string[char_ind+1] == "\n":
-                available_modes = self._get_char_class(input_string[char_ind:char_ind+1])
+                available_modes = self._get_char_class(input_string[char_ind:char_ind+2])
                 skip = 2
             
             elif char in [".",",", ":"] and char_ind < len(input_string) - 1 and input_string[char_ind+1] == " ":
-                available_modes = self._get_char_class(input_string[char_ind:char_ind+1])
+                available_modes = self._get_char_class(input_string[char_ind:char_ind+2])
                 skip = 2
             
             else:
@@ -588,7 +592,7 @@ class AztecBarcodeCompact:
 
             if len(available_modes) == 1:
                 emode, ecode = available_modes[0]
-                _seq, _skip, _mode = self._calculate_mode_seq(emode, ecode, char_ind, input_string=)
+                _seq, _skip, _mode = self._calculate_mode_seq(mode, emode, ecode, char_ind, input_string, skip)
                 seq += _seq
                 skip = _skip
                 mode = _mode
@@ -603,19 +607,20 @@ class AztecBarcodeCompact:
                 
                 if modi >= 0:
                     emode, ecode = available_modes[modi]
-                    _seq, _skip, _mode = self._calculate_mode_seq(emode, ecode, char_ind, input_string)
+                    _seq, _skip, _mode = self._calculate_mode_seq(mode, emode, ecode, char_ind, input_string, skip)
                     seq += _seq
-                    skip = skip
-                    mode = mode
+                    skip = _skip
+                    mode = _mode
                 else:
                     # can be optimised later
                     emode, ecode = available_modes[0]
-                    _seq, _skip, _mode = self._calculate_mode_seq(emode, ecode, char_ind, input_string)
+                    _seq, _skip, _mode = self._calculate_mode_seq(mode, emode, ecode, char_ind, input_string, skip)
                     seq += _seq
-                    skip = skip
-                    mode = mode
+                    skip = _skip
+                    mode = _mode
 
             char_ind += skip
+        return seq
 
 
 
@@ -634,8 +639,8 @@ class AztecBarcodeCompact:
             bitstring += _str
         return bitstring
 
-    # def _convert_bitstring_bitstuff_pad(self, bitstring: str) -> str:
-    #     ...
+    def _convert_bitstring_bitstuff_pad(self, bitstring: str) -> str:
+        ...
         
 
     def _compute_codewords_from_bitstring(self, bitstring: str) -> List[int]:
@@ -665,6 +670,7 @@ class AztecBarcodeCompact:
         bitstring = self._convert_charray_bitstring(char_arr)
 
         # add stuffing bits and padding bits if necessary
+        bitstring = self._convert_bitstring_bitstuff_pad(bitstring)
         # split the string into 6 bit codewords
         codewords = self._compute_codewords_from_bitstring(bitstring); # array of codewords that needs to be encoded
 
