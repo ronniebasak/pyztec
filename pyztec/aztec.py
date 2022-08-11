@@ -1,4 +1,5 @@
 from calendar import c
+from socket import CAN_J1939
 from tkinter import N
 from tkinter.messagebox import RETRY
 from typing import Any, List, Tuple
@@ -53,8 +54,8 @@ codes = {
 
     "punct": [
         SpecialChars.FLG_N,
-        "\r", "\r\n", ". ", ", ", ": ", "!", "\"","#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/", ":", ";", "<", "=", ">", "?", "[", "]", "^", "_", "{",  "}",
-        SpecialChars.LOWER_LATCH, SpecialChars.UPPER_LATCH, SpecialChars.PUNCT_LATCH, SpecialChars.BINARY_SHIFT
+        "\r", "\r\n", ". ", ", ", ": ", "!", "\"","#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/", ":", ";", "<", "=", ">", "?", "[", "]", "{",  "}",
+        SpecialChars.UPPER_LATCH
     ],
 
     "digit": [
@@ -433,16 +434,208 @@ class AztecBarcodeCompact:
 
 
 
+    def _get_char_class(self, char: str) -> str:
+        to_return = []
+        subarr_punct = ["{", "}"]
+        subarr2_punct = ["\r\n", ". ", ", ", ": "]
+        subarr_mixed = ["@", "\\", "^", "_", "`", "|", "~"]
+        
+        if len(char == 1):
+            # upper
+            if 65 <= ord(char) <= 90:
+                to_return.append(("upper", 2 + (ord(char) - 65) ))
+
+            # Lower
+            elif 97 <= ord(char) <= 122:
+                to_return.append(("lower", 2 + (ord(char) - 97) ))
+
+            # Punctuation
+            elif 33 <= ord(char) <= 47:
+                if char == ",":
+                    to_return.append(("digit", 12))
+                elif char == ".":
+                    to_return.append(("digit", 13))
+                to_return.append(("punct", 6 + (ord(char) - 33) ))
+
+            elif 58 <= ord(char) <= 63:
+                to_return.append(("punct", 21 + (ord(char) -  58)) )
+            elif 93 <= ord(char) <= 95:
+                to_return.append(("punct", 28 + (ord(char) - 93) ))
+
+            elif char == "\r":
+                    to_return.append(("punct", 1))
+            elif char == "[":
+                to_return.append(("punct", 27))
+
+            elif char in subarr_punct:
+                ind = subarr_punct.index(char)
+                to_return.append(("punct", 30+ind))
+
+            elif char == " ":
+                to_return += [("upper", 1), ("lower", 1), ("mixed", 1), ("digit", 1)]
+
+            elif char in subarr_mixed:
+                ind = subarr_mixed.index(char)
+                to_return.append(("punct", 20+ind))
+                
+                
+        elif len(char) == 2:
+            if char in subarr2_punct:
+                ind = subarr2_punct.index(char)
+                to_return.append(("punct", 2 + ind))
+        
+        return to_return
+
+    
+    def _calculate_mode_seq(self, mode, emode, ecode, char_ind, input_string):        
+        seq = []
+        skip = 1
+        # if same mode, then continue
+        if mode == emode:
+            if mode == "digit":
+                seq += [(ecode, 4)]
+            else:
+                seq += [ecode]
+
+        elif emode == "lower":
+            if mode == "upper" or mode == "mixed":
+                seq += [codes[mode].index(SpecialChars.LOWER_LATCH), ecode]
+            elif mode == "digit" or mode == "punct":
+                seq += [codes[mode].index(SpecialChars.UPPER_LATCH), codes["upper"].index(SpecialChars.LOWER_LATCH), ecode]
+
+            mode = emode
+
+        elif emode == "upper":
+            if mode == "lower":
+                # when shifting from lower to upper,
+                # we need to check if at least 3 chars are upper, then latch else shift
+                if char_ind < len(input_string) -3:
+
+                    k1 = self._get_char_class(input_string[char_ind+1])
+                    ncx, ncxc = k1[0]
+
+                    if ncx == "upper":
+                        seq += [codes[mode].index(SpecialChars.DIGIT_LATCH), (codes["digit"].index(SpecialChars.UPPER_LATCH), 4), ecode,  ncxc]
+                        skip = 2
+                        mode = emode
+                    else:
+                        seq += [codes[mode].index(SpecialChars.UPPER_SHIFT), ecode]
+            
+                else:
+                    seq += [codes[mode].index(SpecialChars.UPPER_SHIFT), ecode]
+        
+            elif mode == "punct" or mode == "mixed":
+                if mode == "digit":
+                    seq += [(codes[mode].index(SpecialChars.UPPER_LATCH), 4)]
+                else:
+                    seq += [codes[mode].index(SpecialChars.UPPER_LATCH)]
+                seq += [codes[mode].index(SpecialChars.UPPER_LATCH), ecode]
+                mode = emode
+            
+            # if next character is digit then we shift else we latch
+            elif mode == "digit":
+                k1 = self._get_char_class(input_string[char_ind+1])
+                ncx, ncxc = k1[0]
+
+                if ncx == "digit":
+                    seq += [(codes[mode].index(SpecialChars.UPPER_SHIFT), 4), ecode]
+                else:
+                    seq += [(codes[mode].index(SpecialChars.UPPER_LATCH), 4), ecode]
+                    mode = emode
+
+
+        elif emode == "punct":
+            if mode == "digit":
+                seq += [(0, 4), ecode]
+            else:
+                seq += [0, ecode]
+        
+        elif emode == "mixed":
+            if mode == "upper" or mode =="lower":
+                seq += [codes[mode].index(SpecialChars.MIXED_LATCH), ecode]
+            
+            elif mode == "digit" or mode == "punct":
+                seq += [codes[mode].index(SpecialChars.UPPER_LATCH), codes["upper"].index(SpecialChars.MIXED_LATCH), ecode]
+            
+            mode = emode
+
+        return seq, skip, mode
+
+
     def _convert_input_string_to_seq(self, input_string: str) -> List[Any]:
-        ...
+        prev_char = None
+        prev_mode = None
+        mode = "upper"
+        seq = []
+
+        char_ind = 0
+        while char_ind < range(len(input_string)):
+            skip = 1
+            char = input_string[char]
+
+            available_modes = []
+            
+            if char == "\r" and char_ind < len(input_string) - 1 and input_string[char_ind+1] == "\n":
+                available_modes = self._get_char_class(input_string[char_ind:char_ind+1])
+                skip = 2
+            
+            elif char in [".",",", ":"] and char_ind < len(input_string) - 1 and input_string[char_ind+1] == " ":
+                available_modes = self._get_char_class(input_string[char_ind:char_ind+1])
+                skip = 2
+            
+            else:
+                available_modes = self._get_char_class(char)
+
+            if len(available_modes) == 1:
+                emode, ecode = available_modes[0]
+                _seq, _skip, _mode = self._calculate_mode_seq(emode, ecode, char_ind, input_string=)
+                seq += _seq
+                skip = _skip
+                mode = _mode
+
+
+            else:
+                modi = -1
+                for im in range(len(available_modes)):
+                    if available_modes[im][0] == mode:
+                        modi = im
+                        break
+                
+                if modi >= 0:
+                    emode, ecode = available_modes[modi]
+                    _seq, _skip, _mode = self._calculate_mode_seq(emode, ecode, char_ind, input_string)
+                    seq += _seq
+                    skip = skip
+                    mode = mode
+                else:
+                    # can be optimised later
+                    emode, ecode = available_modes[0]
+                    _seq, _skip, _mode = self._calculate_mode_seq(emode, ecode, char_ind, input_string)
+                    seq += _seq
+                    skip = skip
+                    mode = mode
+
+            char_ind += skip
+
+
 
 
     def _convert_charray_bitstring(self, charray: List[Any]) -> str:
-        ...
+        bitstring = ""
+        for k in charray:
+            item = k
+            bits = 4
+            if type(k) == tuple:
+                item, bits = k
 
+            _str = "{:b}".format(item)
+            prepad = "0" * (bits - len(_str))
+            _str = prepad + _str
+            bitstring += _str
+        return bitstring
 
-    def _convert_bitstring_bitstuff_pad(self, bitstring: str) -> str:
-        ...
+    # def _convert_bitstring_bitstuff_pad(self, bitstring: str) -> str:
+    #     ...
         
 
     def _compute_codewords_from_bitstring(self, bitstring: str) -> List[int]:
@@ -472,8 +665,6 @@ class AztecBarcodeCompact:
         bitstring = self._convert_charray_bitstring(char_arr)
 
         # add stuffing bits and padding bits if necessary
-        bitstring = self._convert_bitstring_bitstuff_pad(bitstring)
-
         # split the string into 6 bit codewords
         codewords = self._compute_codewords_from_bitstring(bitstring); # array of codewords that needs to be encoded
 
