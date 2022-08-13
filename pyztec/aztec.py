@@ -667,8 +667,15 @@ class AztecBarcodeCompact:
         return bitstring            
         
 
-    def _compute_codewords_from_bitstring(self, bitstring: str) -> List[int]:
-        ...
+    def _compute_codewords_from_bitstring(self, bitstring: str, CODEWORD_SIZE: int = 6) -> List[int]:
+        codewords = []
+        assert len(bitstring) % CODEWORD_SIZE == 0, "Bitstring must be a multiple of 6"
+    
+        for i in range(0, len(bitstring), CODEWORD_SIZE):
+            subs = bitstring[i:i+CODEWORD_SIZE]
+            subs_int = int(subs, 2)
+            codewords.append(subs_int)
+        return codewords
 
 
     # returns layer size and total supported codewords

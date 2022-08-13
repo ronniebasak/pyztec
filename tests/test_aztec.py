@@ -244,7 +244,7 @@ class TestEncode:
 
             # random bits with all 1s
             {
-                "input": "000111111111000111",
+                "input":  "000111111111000111",
                 "output": "000111111110100011111110111110"
             },
         ]
@@ -252,3 +252,23 @@ class TestEncode:
         for test_case in test_cases:
             assert aztec._convert_bitstring_bitstuff_pad(test_case["input"]) == test_case["output"], "Failed Test Case: {}".format(test_case["input"])
         
+
+    def test__compute_codewords_from_bitstring(self):
+        test_cases = [
+            {
+                "input": "010100111110",
+                "output": [20, 30]
+            },
+            {
+                "input": "000000111110",
+                "output": [0, 30]
+            },
+            {
+                "input": "01010000000111110",
+                "output": [20, 0, 30]
+            },
+            {
+                "input": "0000",
+                "output": [20, 30]
+            },
+        ]
