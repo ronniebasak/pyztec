@@ -578,8 +578,6 @@ class AztecBarcodeCompact:
 
 
     def _convert_input_string_to_seq(self, input_string: str) -> List[Any]:
-        prev_char = None
-        prev_mode = None
         mode = "upper"
         seq = []
 
