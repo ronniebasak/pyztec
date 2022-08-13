@@ -61,6 +61,17 @@ codes = {
     ]
 }
 
+
+# each tuple contains the number of bits and the number of symbols
+# followed by number of skipped bits 
+codeword_size_map = {
+    1: (6, 17, 2),
+    2: (6, 40, 0),
+    3: (8, 51, 0),
+    4: (8, 76, 0)
+}
+
+
 class AztecCodecModes(Enum):
     READ: int = 0
     WRITE: int = 1
@@ -664,7 +675,7 @@ class AztecBarcodeCompact:
         
         # 1 codeword worth of padding
         bitstring += "111110"
-        return bitstring            
+        return bitstring
         
 
     def _compute_codewords_from_bitstring(self, bitstring: str, CODEWORD_SIZE: int = 6) -> List[int]:
@@ -678,9 +689,30 @@ class AztecBarcodeCompact:
         return codewords
 
 
+    def _calculate_boundaries(self, ecc_level):
+        if ecc_level == 1:
+            ECC_FACTOR = 1.23
+            ECC_OFFSET = 3
+
+            boundaries = {}
+            for c in range(1,5):
+                ss, cw, _ = codeword_size_map[c]
+
+                boundaries[c] = ss*( (cw - ECC_OFFSET)//ECC_OFFSET )
+
+
     # returns layer size and total supported codewords
-    def _compute_layer_size(self, codewords, ecc_level = 0) -> Tuple[int, int]:
-        ...
+    def _compute_layer_size(self, bitstring, ecc_level = 0) -> Tuple[int, int]:
+        symbol_size, codewords, skip = 0, 0, 0
+
+        if len(bitstring) <= 60:
+            symbol_size, codewords, skip = codeword_size_map[1]
+        elif len(bitstring) <= 180:
+            symbol_size, codewords, skip = codeword_size_map[2]
+            return codeword_size_map[2]
+        elif len(bitstring) <= 304:
+            return codeword_size_map[3]
+
 
 
     def _reedsolo_enc(self, codewords):
@@ -700,14 +732,14 @@ class AztecBarcodeCompact:
         # convert the character array into binary string
         bitstring = self._convert_charray_bitstring(char_arr)
 
+        # calculate layer size required
+        lsize = self._compute_layer_size(bitstring)
+        
         # add stuffing bits and padding bits if necessary
         bitstring = self._convert_bitstring_bitstuff_pad(bitstring)
+
         # split the string into 6 bit codewords
         codewords = self._compute_codewords_from_bitstring(bitstring); # array of codewords that needs to be encoded
-
-        # calculate layer size required
-        lsize = self._compute_layer_size()
-        
         # add reed-solomon codewords
         codewords = self._reedsolo_enc(codewords)
 
