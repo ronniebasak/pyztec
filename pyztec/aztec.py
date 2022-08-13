@@ -649,32 +649,32 @@ class AztecBarcodeCompact:
         return bitstring
 
 
-    def _convert_bitstring_bitstuff_pad(self, bitstring: str) -> str:
+    def _convert_bitstring_bitstuff_pad(self, bitstring: str, CODEWORD_SIZE: int = 6) -> str:
         bitlength = len(bitstring)
         k=0
         while k < bitlength:
             # add pad bits at the end
-            if len(bitstring) - k < 6:
-                pads = "1" * (5 - (len(bitstring) - k))
+            if len(bitstring) - k < CODEWORD_SIZE:
+                pads = "1" * (CODEWORD_SIZE - (len(bitstring) - k - 1))
 
-                if bitstring[k:k+6] + pads == "11111":
+                if bitstring[k:k+CODEWORD_SIZE] + pads == "1"*(CODEWORD_SIZE-1):
                     pads += "0"
                 else:
                     pads += "1"
                 bitstring += pads
 
-            if bitstring[k:k+6] == "111111":
-                bitstring = bitstring[:k] + "111110" + bitstring[k+5:]
+            if bitstring[k:k+CODEWORD_SIZE] == "1"*(CODEWORD_SIZE):
+                bitstring = bitstring[:k] + "1"*(CODEWORD_SIZE-1)+"0" + bitstring[k+5:]
                 bitlength += 1
 
-            if bitstring[k:k+6] == "000000":
-                bitstring = bitstring[:k] + "000001" + bitstring[k+5:]
+            if bitstring[k:k+6] == "0"*CODEWORD_SIZE:
+                bitstring = bitstring[:k] + "0"*(CODEWORD_SIZE-1)+"1" + bitstring[k+5:]
                 bitlength += 1
 
             k+=6
         
         # 1 codeword worth of padding
-        bitstring += "111110"
+        bitstring += "1"*(CODEWORD_SIZE-1)+ "0"
         return bitstring
         
 
@@ -689,7 +689,7 @@ class AztecBarcodeCompact:
         return codewords
 
 
-    def _calculate_boundaries(self, ecc_level):
+    def _calculate_boundaries(self, ecc_level: int = 1):
         if ecc_level == 1:
             ECC_FACTOR = 1.23
             ECC_OFFSET = 3
@@ -698,25 +698,44 @@ class AztecBarcodeCompact:
             for c in range(1,5):
                 ss, cw, _ = codeword_size_map[c]
 
-                boundaries[c] = ss*( (cw - ECC_OFFSET)//ECC_OFFSET )
+                boundaries[c] = int(ss*( (cw - ECC_OFFSET)//ECC_FACTOR ))
+            return boundaries
 
 
     # returns layer size and total supported codewords
     def _compute_layer_size(self, bitstring, ecc_level = 0) -> Tuple[int, int]:
-        symbol_size, codewords, skip = 0, 0, 0
+        boundaries = self._calculate_boundaries(1)
+        lsize = 0
 
-        if len(bitstring) <= 60:
-            symbol_size, codewords, skip = codeword_size_map[1]
-        elif len(bitstring) <= 180:
-            symbol_size, codewords, skip = codeword_size_map[2]
-            return codeword_size_map[2]
-        elif len(bitstring) <= 304:
-            return codeword_size_map[3]
+        for k in range(1,5):
+            if len(bitstring) <= boundaries[k]:
+                lsize = k
+                break
+        symbol_size, max_codewords, skip = codes[lsize]
+        return lsize, symbol_size, max_codewords, skip
 
 
 
-    def _reedsolo_enc(self, codewords):
-        ...
+    def _reedsolo_enc(self, codewords, max_codewords: int = 17):
+        GF_SIZE = 0
+        PRIME = 0
+
+        # REED SOLOMON CORRECTION 
+        if self.num_layers < 3:
+            GF_SIZE = 6
+            PRIME = AztecPolynomials.POLY_6.value
+        elif self.num_layers < 9:
+            GF_SIZE = 8
+            PRIME = AztecPolynomials.POLY_8.value
+        elif self.num_layers < 23:
+            GF_SIZE = 10
+            PRIME = AztecPolynomials.POLY_10.value
+        else:
+            GF_SIZE = 12
+            PRIME = AztecPolynomials.POLY_12.value
+        rsc = reedsolo.RSCodec(max_codewords-len(codewords), len(codewords), fcr=1, prim=PRIME, c_exp=GF_SIZE)
+        v = rsc.encode(codewords)
+        return v
 
 
     def _get_nparray_from_codewords(self, codewords):
@@ -733,15 +752,15 @@ class AztecBarcodeCompact:
         bitstring = self._convert_charray_bitstring(char_arr)
 
         # calculate layer size required
-        lsize = self._compute_layer_size(bitstring)
+        lsize, symbol_size, max_codewords, skip = self._compute_layer_size(bitstring)
         
         # add stuffing bits and padding bits if necessary
-        bitstring = self._convert_bitstring_bitstuff_pad(bitstring)
+        bitstring = self._convert_bitstring_bitstuff_pad(bitstring, symbol_size)
 
         # split the string into 6 bit codewords
         codewords = self._compute_codewords_from_bitstring(bitstring); # array of codewords that needs to be encoded
         # add reed-solomon codewords
-        codewords = self._reedsolo_enc(codewords)
+        codewords = self._reedsolo_enc(codewords, max_codewords)
 
         # encode into the np array
         nparray = self._get_nparray_from_codewords(codewords)

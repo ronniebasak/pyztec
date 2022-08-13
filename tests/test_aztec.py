@@ -250,7 +250,7 @@ class TestEncode:
         ]
 
         for test_case in test_cases:
-            assert aztec._convert_bitstring_bitstuff_pad(test_case["input"]) == test_case["output"], "Failed Test Case: {}".format(test_case["input"])
+            assert aztec._convert_bitstring_bitstuff_pad(test_case["input"], 6) == test_case["output"], "Failed Test Case: {}".format(test_case["input"])
         
 
     def test__compute_codewords_from_bitstring(self):
