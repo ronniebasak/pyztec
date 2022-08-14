@@ -648,37 +648,37 @@ class AztecBarcodeCompact:
 
 
     def _convert_bitstring_bitstuff_pad(self, bitstring: str, CODEWORD_SIZE: int = 6) -> str:
+        bitstring = bitstring.replace(" ", "") # remove spaces
         bitlength = len(bitstring)
         k=0
         while k < bitlength:
             # add pad bits at the end
-            if len(bitstring) - k < CODEWORD_SIZE:
-                pads = "1" * (CODEWORD_SIZE - (len(bitstring) - k - 1))
+            if bitlength - k < CODEWORD_SIZE:
+                pads = "1" * (CODEWORD_SIZE - (bitlength - k) -1)
 
                 if bitstring[k:k+CODEWORD_SIZE] + pads == "1"*(CODEWORD_SIZE-1):
                     pads += "0"
                 else:
-                    pads += "1"
+                    pads += "1" 
                 bitstring += pads
 
             if bitstring[k:k+CODEWORD_SIZE] == "1"*(CODEWORD_SIZE):
-                bitstring = bitstring[:k] + "1"*(CODEWORD_SIZE-1)+"0" + bitstring[k+5:]
+                bitstring = bitstring[:k] + "1"*(CODEWORD_SIZE-1)+"0" + bitstring[k+(CODEWORD_SIZE-1):]
                 bitlength += 1
 
-            if bitstring[k:k+6] == "0"*CODEWORD_SIZE:
-                bitstring = bitstring[:k] + "0"*(CODEWORD_SIZE-1)+"1" + bitstring[k+5:]
+            if bitstring[k:k+CODEWORD_SIZE] == "0"*CODEWORD_SIZE:
+                bitstring = bitstring[:k] + "0"*(CODEWORD_SIZE-1)+"1" + bitstring[k+(CODEWORD_SIZE-1):]
                 bitlength += 1
 
-            k+=6
+            k+=CODEWORD_SIZE
         
         # 1 codeword worth of padding
         bitstring += "1"*(CODEWORD_SIZE-1)+ "0"
         return bitstring
-        
 
     def _compute_codewords_from_bitstring(self, bitstring: str, CODEWORD_SIZE: int = 6) -> List[int]:
         codewords = []
-        assert len(bitstring) % CODEWORD_SIZE == 0, "Bitstring must be a multiple of 6"
+        assert len(bitstring) % CODEWORD_SIZE == 0, "Bitstring must be a multiple of %d" % CODEWORD_SIZE
     
         for i in range(0, len(bitstring), CODEWORD_SIZE):
             subs = bitstring[i:i+CODEWORD_SIZE]
@@ -714,18 +714,18 @@ class AztecBarcodeCompact:
 
 
 
-    def _reedsolo_enc(self, codewords, max_codewords: int = 17):
+    def _reedsolo_enc(self, codewords, max_codewords: int = 17, lsize: int =1):
         GF_SIZE = 0
         PRIME = 0
 
         # REED SOLOMON CORRECTION 
-        if self.num_layers < 3:
+        if lsize < 3:
             GF_SIZE = 6
             PRIME = AztecPolynomials.POLY_6.value
-        elif self.num_layers < 9:
+        elif lsize < 9:
             GF_SIZE = 8
             PRIME = AztecPolynomials.POLY_8.value
-        elif self.num_layers < 23:
+        elif lsize < 23:
             GF_SIZE = 10
             PRIME = AztecPolynomials.POLY_10.value
         else:
@@ -751,6 +751,7 @@ class AztecBarcodeCompact:
 
         # calculate layer size required
         lsize, symbol_size, max_codewords, skip = self._compute_layer_size(bitstring)
+        self.num_layers = lsize
         
         # add stuffing bits and padding bits if necessary
         bitstring = self._convert_bitstring_bitstuff_pad(bitstring, symbol_size)
@@ -758,7 +759,7 @@ class AztecBarcodeCompact:
         # split the string into 6 bit codewords
         codewords = self._compute_codewords_from_bitstring(bitstring); # array of codewords that needs to be encoded
         # add reed-solomon codewords
-        codewords = self._reedsolo_enc(codewords, max_codewords)
+        codewords = self._reedsolo_enc(codewords, max_codewords, lsize)
 
         # encode into the np array
         nparray = self._get_nparray_from_codewords(codewords)

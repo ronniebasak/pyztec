@@ -202,73 +202,105 @@ class TestEncode:
         test_cases = [
             # 4 bits
             {
-                "input": "0001",
-                "output": "000111111110"
+                "input": ("0001", 6),
+                "output": "000111 111110"
             },
             # 5 bits
             {
-                "input": "00010",
-                "output": "000101111110"
+                "input": ("00010", 6),
+                "output": "000101 111110"
             },
 
             # 6 bits
             {
-                "input": "000100",
-                "output": "000100111110"
+                "input": ("000100", 6),
+                "output": "000100 111110"
             },
 
             # 6 1st bit
             {
-                "input": "111111",
-                "output": "111110111110111110"
+                "input": ("111111", 6),
+                "output": "111110 111110 111110"
             },
 
             # 5 1st bit and a 0
             {
-                "input": "111110",
-                "output": "111110111110"
+                "input": ("111110", 6),
+                "output": "111110 111110"
             },
 
             # 6 0s
             {
-                "input": "000000",
-                "output": "000001011111111110"
+                "input": ("000000", 6),
+                "output": "000001 011111 111110"
             },
 
 
             # random bits 
             {
-                "input": "000111000111",
-                "output": "000111000111111110"
+                "input": ("000111 000111", 6),
+                "output": "000111 000111 111110"
             },
 
             # random bits with all 1s
             {
-                "input":  "000111111111000111",
-                "output": "000111111110100011111110111110"
+                "input": ( "000111 111111 000111", 6),
+                "output": "000111 111110 100011 111110 111110"
+            },
+
+            # 8 bit test
+            {
+                "input": ( "000101", 8),
+                "output": "00010111 11111110"
+            },
+
+            # 8 bit test all 0s
+            {
+                "input": ( "00000000", 8),
+                "output": "00000001 01111111 11111110"
+            },
+
+            # 8 bit test all 1s
+            {
+                "input": ( "11111111", 8),
+                "output": "11111110 11111110 11111110"
+            },
+
+            # 8 bit test all 1 in btween
+            {
+                "input": ( "00010010 11111111", 8),
+                "output": "00010010 11111110 11111110 11111110"
             },
         ]
 
         for test_case in test_cases:
-            assert aztec._convert_bitstring_bitstuff_pad(test_case["input"], 6) == test_case["output"], "Failed Test Case: {}".format(test_case["input"])
+            assert aztec._convert_bitstring_bitstuff_pad(*test_case["input"]) == test_case["output"].replace(" ", ""), "Failed Test Case: {}".format(test_case["input"])
         
 
     def test__compute_codewords_from_bitstring(self):
+        aztec = AztecBarcodeCompact(np.zeros((11,11))) 
         test_cases = [
             {
-                "input": "010100111110",
-                "output": [20, 30]
+                "input": ("010100111110", 6),
+                "output": [20, 62]
             },
             {
-                "input": "000000111110",
-                "output": [0, 30]
+                "input": ("000000111110", 6),
+                "output": [0, 62]
             },
             {
-                "input": "01010000000111110",
-                "output": [20, 0, 30]
+                "input": ("010100000001111100", 6),
+                "output": [20, 1, 60]
             },
             {
-                "input": "0000",
-                "output": [20, 30]
+                "input": ("00001000", 8),
+                "output": [8]
+            },
+            {
+                "input": ("0000100010101010", 8),
+                "output": [8, 170]
             },
         ]
+
+        for test_case in test_cases:
+            assert aztec._compute_codewords_from_bitstring(*test_case["input"]) == test_case["output"], "Failed Test Case: {}".format(test_case["input"])
