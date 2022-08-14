@@ -315,8 +315,9 @@ class AztecBarcodeCompact:
         else:
             GF_SIZE = 12
             PRIME = AztecPolynomials.POLY_12.value
-
-        rsc = reedsolo.RSCodec(5, nsize= len(codewords), c_exp=GF_SIZE, fcr=1, prim=PRIME)
+        
+        # print("CODEWORDS", codewords, len(codewords))
+        rsc = reedsolo.RSCodec(len(codewords)-self.num_codewords, nsize= len(codewords), c_exp=GF_SIZE, fcr=1, prim=PRIME)
         v = rsc.decode(codewords)
         useful_codewords = list(v[0][:self.num_codewords])
         # useful_codewords = codewords[:self.num_codewords]
@@ -365,7 +366,6 @@ class AztecBarcodeCompact:
                 codewords.append(acc)
                 acc = 0
                 debug += " "
-        # print(debug)
         return codewords
 
     
@@ -731,9 +731,11 @@ class AztecBarcodeCompact:
         else:
             GF_SIZE = 12
             PRIME = AztecPolynomials.POLY_12.value
-        rsc = reedsolo.RSCodec(max_codewords-len(codewords), len(codewords), fcr=1, prim=PRIME, c_exp=GF_SIZE)
+
+        ecc_symbols = max_codewords-len(codewords)
+        rsc = reedsolo.RSCodec(ecc_symbols, fcr=1, prim=PRIME, c_exp=GF_SIZE)
         v = rsc.encode(codewords)
-        return v
+        return list(v)
 
 
     def _get_nparray_from_codewords(self, codewords):

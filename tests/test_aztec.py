@@ -304,3 +304,26 @@ class TestEncode:
 
         for test_case in test_cases:
             assert aztec._compute_codewords_from_bitstring(*test_case["input"]) == test_case["output"], "Failed Test Case: {}".format(test_case["input"])
+
+
+    def test__reedsolo_enc(self):
+        aztec = AztecBarcodeCompact(np.zeros((11,11))) 
+        test_cases = [
+            {
+                "input": ([19, 48, 51, 22, 48, 62], 17, 1),
+                "output": [19, 48, 51, 22, 48, 62, 26, 63, 21, 32, 50, 45, 16, 14, 46, 12, 14]
+            },
+
+            {
+                "input": ([175, 18, 170, 5, 84, 8, 158, 19, 100, 78, 139, 76, 30, 11, 117, 49, 3, 77, 56, 112, 104, 79, 9, 135, 152, 83, 21, 19, 21, 66, 4, 254], 51, 3),
+                "output": [175, 18, 170, 5, 84, 8, 158, 19, 100, 78, 139, 76, 30, 11, 117, 49, 3, 77, 56, 112, 104, 79, 9, 135, 152, 83, 21, 19, 21, 66, 4, 254, 83, 143, 82, 140, 129, 100, 253, 56, 114, 233, 189, 155, 98, 226, 151, 139, 53, 211, 64]
+            },
+
+            {
+                "input": ([57, 35, 6, 1, 9, 56, 33, 13, 41, 17, 34, 38, 18, 1, 41, 42, 1, 19, 9, 1, 59], 40, 2),
+                "output": [57, 35, 6, 1, 9, 56, 33, 13, 41, 17, 34, 38, 18, 1, 41, 42, 1, 19, 9, 1, 59, 24, 10, 17, 13, 57, 19, 23, 15, 19, 58, 62, 55, 8, 1, 58, 44, 58, 31, 57]
+            },
+        ]
+
+        for test_case in test_cases:
+            assert aztec._reedsolo_enc(*test_case["input"]) == test_case["output"],  "Failed Reed Solomon Case: {}".format(test_case["input"])
