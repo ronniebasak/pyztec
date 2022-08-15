@@ -9,7 +9,7 @@ import base64
 from pyztec.aztec import AztecBarcodeCompact
 
 
-# usage python img2nparr.py <filename> <layers> [<channel>]
+# usage `python aztec_decoder.py <filename> <layers> [<channel>]`
 # this file generates a Base64 Serialised NumPy array
 
 assert len(sys.argv) > 2, "Too few arguments"
@@ -22,14 +22,19 @@ layers = int(sys.argv[2])
 dimension = layers*4 + 11
 
 image = imageio.imread(sys.argv[1]) # Open file for reading
+
 print(sys.argv[1])
+    
 if sys.argv[1].endswith(".gif"):
     image = image[0] # only the first frame
 # plt.imshow(image)
 
 
 
-image_alpha = image[:,:, CHANNEL]; # mentioned channel
+if len(image.shape) > 2:
+    image_alpha = image[:,:, CHANNEL]; # mentioned channel
+else:
+    image_alpha = image
 # plt.imshow(image_alpha, cmap="Greys")
 pil_img = Image.fromarray(image_alpha).resize((dimension, dimension)).convert('1')
 # plt.imshow(pil_img, cmap="Greys")
