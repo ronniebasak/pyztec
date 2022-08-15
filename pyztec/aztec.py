@@ -859,8 +859,8 @@ class AztecBarcodeCompact:
 
         nparr = self._encode_rune(nparray, lsize, num_codewords)
 
-        plt.imshow(nparr, cmap="Greys")
-        plt.show()
+        # plt.imshow(nparr, cmap="Greys")
+        # plt.show()
 
         # return np array
         return nparr
