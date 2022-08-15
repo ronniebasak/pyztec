@@ -1,8 +1,42 @@
+from statistics import mode
 from typing import Any, List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
 import reedsolo 
 from enum import Enum
+
+COMPACT_AZTEC_CODE = None
+
+def draw_square(arr, ring):
+    assert arr.shape[0] == arr.shape[1] and arr.shape[0] &1 == 1, "Array must be a square of odd numbers"
+    MIDPOINT = arr.shape[0] //2
+    assert ring <= MIDPOINT and ring >= 0, "Ring size must be within limits of the array"
+    
+    high = MIDPOINT + ring
+    low = MIDPOINT - ring
+
+    for q in range(low, high+1):
+        arr[high][q] = 1
+        arr[low][q] = 1
+        arr[q][high] = 1
+        arr[q][low] = 1
+
+
+def initialize_consts():
+    global COMPACT_AZTEC_CODE
+    _COMPACT_AZTEC_CODE = np.zeros(shape=(11,11), dtype=int, order='C')
+    draw_square(_COMPACT_AZTEC_CODE, 0)
+    draw_square(_COMPACT_AZTEC_CODE, 2)
+    draw_square(_COMPACT_AZTEC_CODE, 4)
+    
+    markers = [(0,0), (0,1), (1,0), (0,-1), (1,-1), (-2, -1)]
+    for p,q in markers:
+        _COMPACT_AZTEC_CODE[p][q] = 1
+
+    COMPACT_AZTEC_CODE = np.copy(_COMPACT_AZTEC_CODE)
+
+initialize_consts()
+
 
 class AztecPolynomials(Enum):
     POLY_4 = 19
@@ -709,7 +743,7 @@ class AztecBarcodeCompact:
             if len(bitstring) <= boundaries[k]:
                 lsize = k
                 break
-        symbol_size, max_codewords, skip = codes[lsize]
+        symbol_size, max_codewords, skip = codeword_size_map[lsize]
         return lsize, symbol_size, max_codewords, skip
 
 
@@ -738,8 +772,55 @@ class AztecBarcodeCompact:
         return list(v)
 
 
-    def _get_nparray_from_codewords(self, codewords):
-        ... 
+    def _compute_final_bitstring_from_codewords(self, codewords, CODEWORD_SIZE: int):
+        bitstring = ""
+        for codeword in codewords:
+            # print("PCW",codeword)
+            val = "{:b}".format(codeword)
+            bits = "0"*(CODEWORD_SIZE - len(val)) + val
+            bitstring += bits
+        return bitstring
+
+
+    def _get_nparray_from_codewords(self, bitstring, CODEWORD_SIZE: int, lsize: int):
+        npdim = lsize*4 + 11
+        nparr = np.zeros((npdim, npdim))
+        self.nparray = nparr
+
+        pos = 0
+        for x,y in self._read_compact_data_codewords(CODEWORD_SIZE):
+            if pos < len(bitstring):
+                nparr[x,y] = 0 if bitstring[pos] == "0" else 1
+                pos += 1
+            else:
+                break
+        return nparr
+
+
+    def _encode_rune(self, nparray, lsize: int, num_codewords: int):
+        blank_rune = np.copy(COMPACT_AZTEC_CODE)
+        mode_message = "{:2b}{:6b}".format(lsize-1, num_codewords-1)
+        mode_message = mode_message.replace(" ", "0")
+
+        # print("MODE_MESSAGE:",mode_message)
+        offset = 2*lsize
+
+        _words = [int(mode_message[:4], 2), int(mode_message[4:])]
+        rsc = reedsolo.RSCodec(5, c_exp=4, fcr=1, prim=AztecPolynomials.POLY_4.value)
+        _words = list(rsc.encode(_words))
+
+        print("WORDS", _words)
+        bitstring = self._compute_final_bitstring_from_codewords(_words, 4)
+        print("BITSTRING", bitstring, len(bitstring))
+        pos = 0
+        for x,y in self._generate_compact_mode_sequences():
+            print("XY",x,y, bitstring[pos])
+            if pos < len(bitstring):
+                blank_rune[x,y] = 0 if bitstring[pos] == "0" else 1
+                pos+=1
+        nparray[offset:offset+11, offset:offset+11] = blank_rune
+        return nparray
+
 
 
     def encode(self, input_string: str | List[Any]):
@@ -763,8 +844,16 @@ class AztecBarcodeCompact:
         # add reed-solomon codewords
         codewords = self._reedsolo_enc(codewords, max_codewords, lsize)
 
+        bitstring = self._compute_final_bitstring_from_codewords(codewords, symbol_size)
+
         # encode into the np array
-        nparray = self._get_nparray_from_codewords(codewords)
+        nparray = self._get_nparray_from_codewords(bitstring, symbol_size, lsize)
+        self.nparray = nparray
+
+        nparr = self._encode_rune(nparray, lsize, len(codewords))
+
+        plt.imshow(nparr, cmap="Greys")
+        plt.show()
 
         # return np array
         return nparray
