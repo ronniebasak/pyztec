@@ -328,7 +328,7 @@ class AztecBarcodeCompact:
             codewords = (mode_msg & 0b111111) + 1
             self.num_layers = num_layers
             self.num_codewords = codewords
-
+        print(codewords, word_array)
         return num_layers, codewords
 
 
@@ -413,9 +413,9 @@ class AztecBarcodeCompact:
         # data_squares = n_squares - 121
 
         codewords = self._get_codewords(CODEWORD_SIZE)
-        
+        print("CODEWORDS", codewords)
         bitstring = self._get_bit_string(codewords, CODEWORD_SIZE)
-        # print(bitstring)
+        print(bitstring)
 
         ind = 0
         mode="upper"
@@ -788,7 +788,7 @@ class AztecBarcodeCompact:
         self.nparray = nparr
 
         pos = 0
-        for x,y in self._read_compact_data_codewords(CODEWORD_SIZE):
+        for y,x in self._read_compact_data_codewords(CODEWORD_SIZE):
             if pos < len(bitstring):
                 nparr[x,y] = 0 if bitstring[pos] == "0" else 1
                 pos += 1
@@ -805,7 +805,7 @@ class AztecBarcodeCompact:
         # print("MODE_MESSAGE:",mode_message)
         offset = 2*lsize
 
-        _words = [int(mode_message[:4], 2), int(mode_message[4:])]
+        _words = [int(mode_message[:4], 2), int(mode_message[4:],2)]
         rsc = reedsolo.RSCodec(5, c_exp=4, fcr=1, prim=AztecPolynomials.POLY_4.value)
         _words = list(rsc.encode(_words))
 
@@ -814,7 +814,7 @@ class AztecBarcodeCompact:
         print("BITSTRING", bitstring, len(bitstring))
         pos = 0
         for x,y in self._generate_compact_mode_sequences():
-            print("XY",x,y, bitstring[pos])
+            # print("XY",x,y, bitstring[pos])
             if pos < len(bitstring):
                 blank_rune[x,y] = 0 if bitstring[pos] == "0" else 1
                 pos+=1
@@ -828,6 +828,7 @@ class AztecBarcodeCompact:
 
         # convert string into character array, includes escape sequences and special characters.
         char_arr = self._convert_input_string_to_seq(input_string)
+        print("CHAR ARRAY", char_arr)
 
         # convert the character array into binary string
         bitstring = self._convert_charray_bitstring(char_arr)
@@ -841,22 +842,28 @@ class AztecBarcodeCompact:
 
         # split the string into 6 bit codewords
         codewords = self._compute_codewords_from_bitstring(bitstring); # array of codewords that needs to be encoded
+        self.num_codewords = len(codewords)
+        num_codewords = len(codewords)
+
+        print("CODING CODE", codewords)
         # add reed-solomon codewords
         codewords = self._reedsolo_enc(codewords, max_codewords, lsize)
+        print("ENCODING CODE", codewords)
 
         bitstring = self._compute_final_bitstring_from_codewords(codewords, symbol_size)
+        print("FINAL BITSTRING",bitstring)
 
         # encode into the np array
         nparray = self._get_nparray_from_codewords(bitstring, symbol_size, lsize)
         self.nparray = nparray
 
-        nparr = self._encode_rune(nparray, lsize, len(codewords))
+        nparr = self._encode_rune(nparray, lsize, num_codewords)
 
         plt.imshow(nparr, cmap="Greys")
         plt.show()
 
         # return np array
-        return nparray
+        return nparr
 
 
 
