@@ -828,7 +828,7 @@ class AztecBarcodeCompact:
 
         # convert string into character array, includes escape sequences and special characters.
         char_arr = self._convert_input_string_to_seq(input_string)
-        print("CHAR ARRAY", char_arr)
+        # print("CHAR ARRAY", char_arr)
 
         # convert the character array into binary string
         bitstring = self._convert_charray_bitstring(char_arr)
@@ -845,13 +845,13 @@ class AztecBarcodeCompact:
         self.num_codewords = len(codewords)
         num_codewords = len(codewords)
 
-        print("CODING CODE", codewords)
+        # print("CODING CODE", codewords)
         # add reed-solomon codewords
         codewords = self._reedsolo_enc(codewords, max_codewords, lsize)
-        print("ENCODING CODE", codewords)
+        # print("ENCODING CODE", codewords)
 
         bitstring = self._compute_final_bitstring_from_codewords(codewords, symbol_size)
-        print("FINAL BITSTRING",bitstring)
+        # print("FINAL BITSTRING",bitstring)
 
         # encode into the np array
         nparray = self._get_nparray_from_codewords(bitstring, symbol_size, lsize)
