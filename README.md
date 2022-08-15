@@ -74,6 +74,7 @@ Anyways, I got intrigued and I tried to find open source implentation of Aztec C
 ## Plans for future (in order)
 
 ### Core
+1. Add Reed solomon erasure detection support
 1. Add Binary Data codec support
 2. Add Escape sequences support (including FNC1 and GS1 symbols)
 3. Add Non ASCII Charset support
