@@ -24,7 +24,7 @@ pip install .
 ## Usage
 Currently, you need a perfectly cropped and centered picture in order to be decoded, there is no correction of rotation nor reflection in any axis whatsoever. 
 
-Reed solomon error correction is present. So a slightly corrupted image data will hopefully be recovered. There is no support for Erasure detection (which, if triggered improves error correction by upto 2x)
+Reed solomon error correction is present. So a slightly corrupted image data will hopefully be recovered. ~~There is no support for Erasure detection~~. The current version brings support for Reed Solomon Erasure detection.
 
 
 ### Decoding
