@@ -351,8 +351,15 @@ class AztecBarcodeCompact:
             PRIME = AztecPolynomials.POLY_12.value
         
         # print("CODEWORDS", codewords, len(codewords))
+        
+        # erasure detection
+        erasures = []
+        for i in range(len(codewords)):
+            if codewords[i] == 0 or codewords[i] == (1<<CODEWORD_SIZE) - 1:
+                erasures.append(i)
+
         rsc = reedsolo.RSCodec(len(codewords)-self.num_codewords, nsize= len(codewords), c_exp=GF_SIZE, fcr=1, prim=PRIME)
-        v = rsc.decode(codewords)
+        v = rsc.decode(codewords, erase_pos=erasures)
         useful_codewords = list(v[0][:self.num_codewords])
         # useful_codewords = codewords[:self.num_codewords]
         # print("DECODED WORDS", list(v[0]))

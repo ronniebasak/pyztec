@@ -3,6 +3,10 @@ ___
 
 A open source, python implementation of Aztec 2D barcode.
 
+## What is Aztec Barcode?
+
+Aztec is a ISO/IEC 24778:2008 specified 2D Barcode specification. The primary advantage of Aztec is that it doesn't need a quiet zone surrounding the barcode.
+
 
 ## Installation
 I have not yet submitted it to pip so the only way to install this project would be by cloning (or using Download as ZIP from Github)
@@ -39,13 +43,13 @@ python aztec_encoder.py <msg> <output_file>
 ```
 > TIP: We've only tested PNG output files so far.
 
-## What is this?
+## What is the aim of this project?
 This project aims to add a fast, standards compliant AZTEC barcode encoding and decoding support
 
 
 ## Why Aztec?
 
-It all started when I was boarding a plane and it was raining and an edge of my boarding pass got ripped. It still scanned flawlessly. This hit me, this is why airline industry uses Aztec and not QR. If the corder of a QR is ripped, the finder pattern is gone. 
+It all started when I was boarding a plane and it was raining and an edge of my boarding pass got ripped. It still scanned flawlessly. This hit me, this is why airline industry uses Aztec and not QR. If the corner of a QR is ripped, the finder pattern is gone. 
 
 Anyways, I got intrigued and I tried to find open source implentation of Aztec Codec and couldn't find any. Had to watch this YT video https://www.youtube.com/watch?v=xtlqYx6e1TE, read a patent and go through wikipedia 8 times to even get started. the IEC paper costs more than I am willing to shell on a pet project. If someone have a copy, please send me
 
@@ -60,26 +64,25 @@ Anyways, I got intrigued and I tried to find open source implentation of Aztec C
 ## What is **not** supported
 
 1. FLG_N Escape sequences (ECI codes and FNC1)
-2. GS1 Compliant codes
-3. Binary data
-4. Non ASCII character sets
+1. GS1 Compliant codes
+1. Binary data
+1. Non ASCII character sets
 
 ## Why FULL Aztec codes aren't supported
 1. They contain 1 extra ring. 
-2. They contain 40 bit mode message instead of 28 bit
-3. They have upto 12 bits per symbol
-4. They contain a grid that needs to be erased and skipped while en/decoding
+1. They contain 40 bit mode message instead of 28 bit
+1. They have upto 12 bits per symbol
+1. They contain a grid that needs to be erased and skipped while en/decoding
 
 
 ## Plans for future (in order)
 
 ### Core
-1. Add Reed solomon erasure detection support
 1. Add Binary Data codec support
-2. Add Escape sequences support (including FNC1 and GS1 symbols)
-3. Add Non ASCII Charset support
-4. Add Full Aztec codec support (and seamlessly transition)
-5. Add mixed mode support (honestly, I have no clue why it exists)
+1. Add Escape sequences support (including FNC1 and GS1 symbols)
+1. Add Non ASCII Charset support
+1. Add Full Aztec codec support (and seamlessly transition)
+1. Add mixed mode support (honestly, I have no clue why it exists)
 
 ### Utilities
 1. Recognition of finder pattern from an arbitrary image
