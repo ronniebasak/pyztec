@@ -432,11 +432,16 @@ class AztecBarcodeCompact:
         output = []
         
         while ind<len(bitstring):
-            if mode != "digit":
+            if mode != "digit" and mode != "binary":
                 bits = bitstring[ind: ind+5]
                 if len(bitstring) - ind <= 5:
                     break
                 inc = 5
+            elif mode == "binary":
+                bits = bitstring[ind: ind+8]
+                if len(bitstring) - ind <= 8:
+                    break
+                inc = 8
             else:
                 bits = bitstring[ind: ind+4]
                 if len(bitstring) - ind <= 4:
@@ -447,19 +452,25 @@ class AztecBarcodeCompact:
 
             data = int(bits, 2)
             # print("data",data)
-            decoded_char = codes[mode][data]
+            decoded_char = None
+            if not mode == "binary":
+                decoded_char = codes[mode][data]
+            else: 
+                decoded_char = data
             # print(decoded_char)
 
             if shift:
-                shift = False
-                mode = pmode
-                pmode = None
+                shift -= 1
+
+                if not shift:
+                    mode = pmode
+                    pmode = None
             if decoded_char == SpecialChars.LOWER_LATCH:
                 mode = "lower"
             elif decoded_char == SpecialChars.UPPER_LATCH:
                 mode = "upper"
             elif decoded_char == SpecialChars.UPPER_SHIFT:
-                shift = True
+                shift = 1
                 pmode = mode
                 mode = "upper"
             elif decoded_char == SpecialChars.DIGIT_LATCH:
@@ -467,9 +478,22 @@ class AztecBarcodeCompact:
             elif decoded_char == SpecialChars.PUNCT_LATCH:
                 mode = "punct"
             elif decoded_char == SpecialChars.PUNCT_SHIFT:
-                shift = True
+                shift = 1
                 pmode = mode
                 mode = "punct"
+            elif decoded_char == SpecialChars.BINARY_SHIFT:
+                pmode = mode
+                mode = "binary"
+                dLength = bitstring[ind+inc: ind+inc+5]
+                inc += 5
+
+                dLength = int(dLength, 2)
+                if dLength > 0:
+                    shift = dLength
+                elif dLength == 0:
+                    sLength = bitstring[ind+inc: ind+inc+11]
+                    sLength = int(sLength, 2)
+                    shift = sLength + 31
 
 
             else:
